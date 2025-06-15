@@ -69,4 +69,19 @@ public class GameController {
         }
         return new ResponseEntity<>(game, HttpStatus.OK);
     }
+
+    @PutMapping("/{gameId}/chord") // <--- NEW Endpoint
+    public ResponseEntity<GameBoard> chordClick(
+            @PathVariable String gameId,
+            @RequestBody CellActionRequest request) {
+        try {
+            GameBoard updatedGame = gameService.chordClick(gameId, request.getRow(), request.getCol()); // <--- NEW Service Call
+            if (updatedGame == null) {
+                return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+            }
+            return new ResponseEntity<>(updatedGame, HttpStatus.OK);
+        } catch (IllegalArgumentException e) {
+            return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST);
+        }
+    }
 }
