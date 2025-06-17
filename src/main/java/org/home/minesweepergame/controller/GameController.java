@@ -22,9 +22,10 @@ public class GameController {
     }
 
     @PostMapping("/start")
-    public ResponseEntity<GameBoard> startGame(@RequestBody GameStartRequest request) { // This looks correct already
+    public ResponseEntity<GameBoard> startGame(@RequestBody GameStartRequest request) {
         try {
-            GameBoard newGame = gameService.startGame(request.getRows(), request.getCols(), request.getMines());
+            // Modified to pass Difficulty directly
+            GameBoard newGame = gameService.startGame(request.getDifficulty());
             return new ResponseEntity<>(newGame, HttpStatus.CREATED);
         } catch (IllegalArgumentException e) {
             return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST);

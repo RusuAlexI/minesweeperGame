@@ -8,17 +8,22 @@ public class GameBoard {
     private int mines;
     private Cell[][] board;
     private GameStatus status; // This MUST be set correctly
-    private long startTime;    // This MUST be set correctly
+    private long startTime; // Time in milliseconds when the game started
+    private Long timeTaken; // Time in milliseconds when the game ended (null if not ended)
+    private Difficulty difficulty; // New field
 
-    // Constructor used by GameService.startGame
-    public GameBoard(String id, int rows, int cols, int mines, Cell[][] board, GameStatus status, long startTime) {
+    // Constructor
+    public GameBoard(String id, int rows, int cols, int mines, Cell[][] board,
+                     GameStatus status, long startTime, Difficulty difficulty) { // Added Difficulty
         this.id = id;
         this.rows = rows;
         this.cols = cols;
         this.mines = mines;
         this.board = board;
-        this.status = status; // Ensure this is assigning GameStatus.IN_PROGRESS
-        this.startTime = startTime; // Ensure this is assigning System.currentTimeMillis()
+        this.status = status;
+        this.startTime = startTime;
+        this.difficulty = difficulty; // Set new field
+        this.timeTaken = null; // Initialize as null, set on win/loss
     }
 
     // Default constructor (required by Jackson for deserialization)
@@ -79,5 +84,19 @@ public class GameBoard {
 
     public void setStartTime(long startTime) {
         this.startTime = startTime;
+    }
+
+    public Long getTimeTaken() { return timeTaken; }
+    public void setTimeTaken(Long timeTaken) { this.timeTaken = timeTaken; }
+
+    public Difficulty getDifficulty() { return difficulty; } // New getter
+    public void setDifficulty(Difficulty difficulty) { this.difficulty = difficulty; } // New setter
+
+    // Optional: Helper to get elapsed time while game is in progress
+    public long getElapsedTime() {
+        if (status == GameStatus.IN_PROGRESS) {
+            return System.currentTimeMillis() - startTime;
+        }
+        return (timeTaken != null) ? timeTaken : 0;
     }
 }
