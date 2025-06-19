@@ -11,9 +11,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-@RestController
-@RequestMapping("/api/scores")
-@CrossOrigin(origins = "http://localhost:4200") //  <----  CRUCIAL:  Enable CORS for your Angular app
+@RestController // Marks this class as a REST controller
+@RequestMapping("/api/game/scores") // Base path for score-related endpoints
+@CrossOrigin(origins = "http://localhost:4200") // IMPORTANT: Allow requests from your Angular app
 public class ScoreController {
 
     private final ScoreService scoreService;
@@ -23,19 +23,33 @@ public class ScoreController {
         this.scoreService = scoreService;
     }
 
+    /**
+     * Endpoint to add a new score.
+     * Expects gameId and playerName in the request body.
+     */
     @PostMapping("/add")
-    public ResponseEntity<Score> addScore(@RequestBody AddScoreRequest request) {
+    public ResponseEntity<Score> addScore(@RequestBody AddScoreRequest scoreRequest) {
         try {
-            Score newScore = scoreService.addScore(request.getGameId(), request.getPlayerName());
-            return new ResponseEntity<>(newScore, HttpStatus.CREATED);
+            Score savedScore = scoreService.addScore(scoreRequest.getGameId(), scoreRequest.getPlayerName());
+            return new ResponseEntity<>(savedScore, HttpStatus.CREATED); // 201 Created
         } catch (IllegalArgumentException e) {
-            return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST);
+            return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST); // 400 Bad Request
+        } catch (Exception e) {
+            // Catch any other unexpected exceptions
+            return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR); // 500 Internal Server Error
         }
     }
 
-    @GetMapping("/top/{difficulty}")
+    /**
+     * Endpoint to get top scores for a specific difficulty.
+     */
+    @GetMapping("/{difficulty}")
     public ResponseEntity<List<Score>> getTopScores(@PathVariable Difficulty difficulty) {
-        List<Score> topScores = scoreService.getTopScores(difficulty);
-        return new ResponseEntity<>(topScores, HttpStatus.OK);
+        try {
+            List<Score> topScores = scoreService.getTopScores(difficulty);
+            return new ResponseEntity<>(topScores, HttpStatus.OK); // 200 OK
+        } catch (Exception e) {
+            return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR); // 500 Internal Server Error
+        }
     }
 }

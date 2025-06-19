@@ -15,6 +15,9 @@ public interface ScoreRepository extends JpaRepository<Score, String> {
 
     // Existing method for simple reads (no lock needed)
     List<Score> findTop10ByDifficultyOrderByTimeTakenAsc(Difficulty difficulty);
+    // Custom method to find top scores for a given difficulty, ordered by timeTaken (ascending)
+    // and then by timestamp (ascending, for ties or scores saved at same time)
+    List<Score> findTop10ByDifficultyOrderByTimeTakenAscTimestampAsc(Difficulty difficulty);
 
     // NEW METHOD FOR PESSIMISTIC LOCKING:
     // This method will fetch all scores for a given difficulty and acquire a write lock on them.

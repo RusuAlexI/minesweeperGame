@@ -1,216 +1,160 @@
 package org.home.minesweepergame.service;
 
+import org.home.minesweepergame.dtos.GameCreationRequest;
 import org.home.minesweepergame.model.Cell;
+import org.home.minesweepergame.model.Difficulty;
 import org.home.minesweepergame.model.GameBoard;
 import org.home.minesweepergame.model.GameStatus;
 import org.springframework.stereotype.Service;
-import org.home.minesweepergame.model.Difficulty; // Import new Difficulty enum
 
-
-import java.util.*;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Queue;
+import java.util.LinkedList;
+import java.util.Random;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class GameService {
-    private final Map<String, GameBoard> games = new HashMap<>();
 
-    public GameBoard startGame(Difficulty difficulty) { // Modified signature
-        if (difficulty == null) {
-            throw new IllegalArgumentException("Difficulty cannot be null.");
-        }
+    private final Map<String, GameBoard> activeGames = new ConcurrentHashMap<>();
 
-        int rows = difficulty.getRows();
-        int cols = difficulty.getCols();
-        int mines = difficulty.getMines();
+    // Define standard dimensions for difficulties here
+    private static final Map<Difficulty, int[]> DIFFICULTY_SETTINGS = Map.of(
+            Difficulty.EASY, new int[]{9, 9, 10},      // rows, cols, mines
+            Difficulty.MEDIUM, new int[]{16, 16, 40},
+            Difficulty.HARD, new int[]{16, 30, 99}
+    );
 
-        // Basic parameter validation (already handled by Difficulty enum, but good to keep general check)
-        if (rows <= 0 || cols <= 0 || mines < 0 || mines >= rows * cols) {
-            throw new IllegalArgumentException("Invalid game parameters for difficulty: " + difficulty.name());
+    /**
+     * Creates a new game board based on either a predefined difficulty or custom settings.
+     * This replaces the old 'startGame' method.
+     * @param request GameCreationRequest containing difficulty or custom dimensions.
+     * @return The newly created GameBoard.
+     * @throws IllegalArgumentException if invalid custom settings are provided.
+     */
+    public GameBoard createGame(GameCreationRequest request) {
+        int rows, cols, mines;
+        Difficulty difficultyType;
+
+        if (request.getDifficulty() != null && request.getDifficulty() != Difficulty.CUSTOM) {
+            difficultyType = request.getDifficulty();
+            int[] settings = DIFFICULTY_SETTINGS.get(difficultyType);
+            if (settings == null) {
+                throw new IllegalArgumentException("Invalid predefined difficulty: " + difficultyType);
+            }
+            rows = settings[0];
+            cols = settings[1];
+            mines = settings[2];
+        } else if (request.getRows() != null && request.getCols() != null && request.getMines() != null) {
+            difficultyType = Difficulty.CUSTOM;
+            rows = request.getRows();
+            cols = request.getCols();
+            mines = request.getMines();
+
+            // Server-side validation for custom settings
+            if (rows < 5 || cols < 5 || rows > 50 || cols > 50) {
+                throw new IllegalArgumentException("Custom rows and columns must be between 5 and 50.");
+            }
+            if (mines < 1 || mines >= (rows * cols)) {
+                throw new IllegalArgumentException("Number of mines must be at least 1 and less than total cells.");
+            }
+            if (mines > (rows * cols) / 2) {
+                throw new IllegalArgumentException("Too many mines for the given board size (maximum 50% of cells).");
+            }
+        } else {
+            throw new IllegalArgumentException("Invalid game creation request. Specify either a predefined difficulty or custom rows, columns, and mines.");
         }
 
         String gameId = UUID.randomUUID().toString();
-        Cell[][] board = initializeBoard(rows, cols);
-        placeMines(board, mines);
-        calculateAdjacentMines(board);
-
-        GameBoard game = new GameBoard(
-                gameId,
-                rows,
-                cols,
-                mines,
-                board,
-                GameStatus.IN_PROGRESS,
-                System.currentTimeMillis(), // Set startTime
-                difficulty // Pass difficulty
-        );
-        games.put(gameId, game);
-        return game;
-    }
-
-    // Renamed for clarity: initialize cells on the board
-    private Cell[][] initializeBoard(int rows, int cols) {
         Cell[][] board = new Cell[rows][cols];
-        for (int i = 0; i < rows; i++) {
-            for (int j = 0; j < cols; j++) {
-                board[i][j] = new Cell(false, false, false, 0); // isMine, isRevealed, isFlagged, adjacentMines
-            }
-        }
-        return board;
+        initializeBoard(board, rows, cols); // Initialize cells before placing mines
+
+        GameBoard newGame = new GameBoard(gameId, rows, cols, mines, board, GameStatus.NOT_STARTED, difficultyType);
+        activeGames.put(gameId, newGame);
+
+        System.out.println("New game created: " + newGame);
+        return newGame;
     }
 
-    // Method to place mines on a given board
-    private void placeMines(Cell[][] board, int mines) {
-        int rows = board.length;
-        int cols = board[0].length;
-        Random random = new Random();
-        int minesPlaced = 0;
+    // Existing methods (revealCell, flagCell, chordClick, getGame) will remain largely the same,
+    // but ensure they use the GameBoard object retrieved from 'activeGames' map.
 
-        while (minesPlaced < mines) {
-            int r = random.nextInt(rows);
-            int c = random.nextInt(cols);
-
-            if (!board[r][c].isMine()) {
-                board[r][c].setMine(true);
-                minesPlaced++;
-            }
-        }
+    public GameBoard getGame(String gameId) {
+        return activeGames.get(gameId);
     }
 
-    // Method to calculate adjacent mines for all cells on the board
-    private void calculateAdjacentMines(Cell[][] board) {
-        int rows = board.length;
-        int cols = board[0].length;
-
-        for (int r = 0; r < rows; r++) {
-            for (int c = 0; c < cols; c++) {
-                if (!board[r][c].isMine()) { // Only calculate for non-mine cells
-                    int count = 0;
-                    for (int dr = -1; dr <= 1; dr++) {
-                        for (int dc = -1; dc <= 1; dc++) {
-                            if (dr == 0 && dc == 0) continue; // Skip current cell
-
-                            int nr = r + dr;
-                            int nc = c + dc;
-
-                            if (isValidCoord(nr, nc, rows, cols) && board[nr][nc].isMine()) {
-                                count++;
-                            }
-                        }
-                    }
-                    board[r][c].setAdjacentMines(count);
-                }
-            }
-        }
-    }
-
-    public GameBoard getGame(String id) {
-        return games.get(id);
-    }
-
-    // Consolidated and corrected reveal logic (was 'reveal' and 'revealCell')
     public GameBoard revealCell(String gameId, int row, int col) {
-        GameBoard game = games.get(gameId);
-        if (game == null || game.getStatus() != GameStatus.IN_PROGRESS) {
-            return game;
+        GameBoard game = activeGames.get(gameId);
+        if (game == null || game.getStatus() == GameStatus.WON || game.getStatus() == GameStatus.LOST) {
+            return null; // Game not found or already ended
         }
 
-        if (!isValidCoord(row, col, game.getRows(), game.getCols())) {
-            throw new IllegalArgumentException("Invalid cell coordinates.");
+        // Start the game and place mines on the first reveal if NOT_STARTED
+        if (game.getStatus() == GameStatus.NOT_STARTED) {
+            game.setStartTime(System.currentTimeMillis());
+            placeMines(game, row, col); // Pass the clicked cell to avoid placing a mine there
+            calculateAdjacentMines(game);
+            game.setStatus(GameStatus.IN_PROGRESS);
         }
 
         Cell cell = game.getBoard()[row][col];
+
         if (cell.isRevealed() || cell.isFlagged()) {
-            return game;
+            return game; // Do nothing if already revealed or flagged
         }
 
         cell.setRevealed(true);
 
         if (cell.isMine()) {
             game.setStatus(GameStatus.LOST);
-            revealAllMines(game);
-            game.setTimeTaken(System.currentTimeMillis() - game.getStartTime()); // Set time on loss
-        } else if (cell.getAdjacentMines() == 0) {
-            floodReveal(game, row, col);
+            revealAllMines(game); // Show all mines on loss
+            System.out.println("Game " + gameId + " LOST.");
+        } else {
+            if (cell.getAdjacentMines() == 0) {
+                // If the revealed cell has 0 adjacent mines, auto-reveal its neighbors
+                revealEmptyCells(game, row, col);
+            }
+            if (checkWinCondition(game)) {
+                game.setStatus(GameStatus.WON);
+                game.setTimeTaken(System.currentTimeMillis() - game.getStartTime());
+                System.out.println("Game " + gameId + " WON. Time taken: " + game.getTimeTaken() + "ms.");
+            }
         }
-
-        if (game.getStatus() == GameStatus.IN_PROGRESS && checkWinCondition(game)) {
-            game.setStatus(GameStatus.WON);
-            game.setTimeTaken(System.currentTimeMillis() - game.getStartTime()); // Set time on win
-        }
-
-        games.put(gameId, game);
         return game;
     }
 
-    // Consolidated and corrected flood fill logic (was 'floodReveal' and 'revealAdjacentEmptyCells')
-    private void floodReveal(GameBoard game, int startRow, int startCol) {
-        Queue<int[]> queue = new LinkedList<>();
-        queue.offer(new int[]{startRow, startCol});
-        Cell[][] board = game.getBoard();
-        int rows = game.getRows();
-        int cols = game.getCols();
-
-        while (!queue.isEmpty()) {
-            int[] current = queue.poll();
-            int r = current[0];
-            int c = current[1];
-
-            for (int dr = -1; dr <= 1; dr++) {
-                for (int dc = -1; dc <= 1; dc++) {
-                    if (dr == 0 && dc == 0) continue;
-
-                    int nr = r + dr;
-                    int nc = c + dc;
-
-                    if (isValidCoord(nr, nc, rows, cols)) {
-                        Cell neighbor = board[nr][nc];
-                        if (!neighbor.isRevealed() && !neighbor.isMine() && !neighbor.isFlagged()) {
-                            neighbor.setRevealed(true);
-                            if (neighbor.getAdjacentMines() == 0) {
-                                queue.offer(new int[]{nr, nc}); // Continue flood fill
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // Consolidated and corrected flag toggle logic (was 'toggleFlag' and 'flagCell')
     public GameBoard flagCell(String gameId, int row, int col) {
-        GameBoard game = games.get(gameId);
+        GameBoard game = activeGames.get(gameId);
         if (game == null || game.getStatus() != GameStatus.IN_PROGRESS) {
-            return game;
-        }
-
-        if (!isValidCoord(row, col, game.getRows(), game.getCols())) {
-            throw new IllegalArgumentException("Invalid cell coordinates.");
+            return null;
         }
 
         Cell cell = game.getBoard()[row][col];
-        if (!cell.isRevealed()) { // Only allow flagging unrevealed cells
+        if (!cell.isRevealed()) {
             cell.setFlagged(!cell.isFlagged()); // Toggle flag
         }
-        games.put(gameId, game); // Update the game in the map
         return game;
     }
 
-
-    // This method handles the 'chord click' logic
     public GameBoard chordClick(String gameId, int row, int col) {
-        GameBoard game = games.get(gameId);
+        GameBoard game = activeGames.get(gameId);
         if (game == null || game.getStatus() != GameStatus.IN_PROGRESS) {
-            throw new IllegalArgumentException("Game not found or not in progress.");
+            return null;
         }
 
         Cell clickedCell = game.getBoard()[row][col];
+
+        // Chord only works if the cell is already revealed and is not a mine
         if (!clickedCell.isRevealed() || clickedCell.isMine()) {
             return game;
         }
 
         int flaggedNeighbors = countFlaggedNeighbors(game, row, col);
 
+        // If flagged neighbors match adjacent mines, reveal unflagged non-mine neighbors
         if (flaggedNeighbors == clickedCell.getAdjacentMines()) {
-            boolean mineHitDuringChord = false;
             for (int rOffset = -1; rOffset <= 1; rOffset++) {
                 for (int cOffset = -1; cOffset <= 1; cOffset++) {
                     if (rOffset == 0 && cOffset == 0) continue;
@@ -220,43 +164,112 @@ public class GameService {
 
                     if (isValidCoord(nRow, nCol, game.getRows(), game.getCols())) {
                         Cell neighborCell = game.getBoard()[nRow][nCol];
-
                         if (!neighborCell.isRevealed() && !neighborCell.isFlagged()) {
-                            if (neighborCell.isMine()) {
-                                neighborCell.setRevealed(true);
-                                game.setStatus(GameStatus.LOST);
-                                revealAllMines(game);
-                                game.setTimeTaken(System.currentTimeMillis() - game.getStartTime()); // Set time on loss
-                                mineHitDuringChord = true;
-                                break;
-                            } else {
-                                if (neighborCell.getAdjacentMines() == 0) {
-                                    floodReveal(game, nRow, nCol);
-                                } else {
-                                    neighborCell.setRevealed(true);
-                                }
+                            // Recursively call revealCell for non-flagged, unrevealed neighbors
+                            // Note: This can potentially trigger a loss if a mine is revealed
+                            revealCell(gameId, nRow, nCol); // Re-calling revealCell to ensure full game state update and win/loss checks
+                        } else if (neighborCell.isFlagged() && !neighborCell.isMine()) {
+                            // If a flagged neighbor is not a mine, it's an incorrect flag and chord click should fail
+                            // For a true Minesweeper experience, incorrect flags on chord should result in loss
+                            // We can uncomment the next lines to implement that strict rule
+                            // game.setStatus(GameStatus.LOST);
+                            // revealAllMines(game);
+                            // return game;
+                        }
+                    }
+                }
+            }
+        }
+        return game;
+    }
+
+    // --- Helper Methods ---
+
+    private void initializeBoard(Cell[][] board, int rows, int cols) {
+        for (int r = 0; r < rows; r++) {
+            for (int c = 0; c < cols; c++) {
+                board[r][c] = new Cell(r, c); // Ensure Cell constructor takes row and col
+            }
+        }
+    }
+
+    private void placeMines(GameBoard game, int initialRow, int initialCol) {
+        Random random = new Random();
+        int minesToPlace = game.getMines();
+        int rows = game.getRows();
+        int cols = game.getCols();
+
+        while (minesToPlace > 0) {
+            int r = random.nextInt(rows);
+            int c = random.nextInt(cols);
+
+            // Ensure mine is not placed on the initial clicked cell or its immediate neighbors
+            // to guarantee a safe first click.
+            boolean isInitialClickArea = (Math.abs(r - initialRow) <= 1 && Math.abs(c - initialCol) <= 1);
+
+            if (!game.getBoard()[r][c].isMine() && !isInitialClickArea) {
+                game.getBoard()[r][c].setMine(true);
+                minesToPlace--;
+            }
+        }
+    }
+
+    private void calculateAdjacentMines(GameBoard game) {
+        int rows = game.getRows();
+        int cols = game.getCols();
+        for (int r = 0; r < rows; r++) {
+            for (int c = 0; c < cols; c++) {
+                Cell currentCell = game.getBoard()[r][c];
+                if (!currentCell.isMine()) {
+                    int count = 0;
+                    for (int rOffset = -1; rOffset <= 1; rOffset++) {
+                        for (int cOffset = -1; cOffset <= 1; cOffset++) {
+                            if (rOffset == 0 && cOffset == 0) continue; // Skip self
+
+                            int nRow = r + rOffset;
+                            int nCol = c + cOffset;
+
+                            if (isValidCoord(nRow, nCol, rows, cols) && game.getBoard()[nRow][nCol].isMine()) {
+                                count++;
+                            }
+                        }
+                    }
+                    currentCell.setAdjacentMines(count);
+                }
+            }
+        }
+    }
+
+    private void revealEmptyCells(GameBoard game, int row, int col) {
+        Queue<Cell> queue = new LinkedList<>();
+        queue.add(game.getBoard()[row][col]);
+
+        while (!queue.isEmpty()) {
+            Cell current = queue.poll();
+
+            for (int rOffset = -1; rOffset <= 1; rOffset++) {
+                for (int cOffset = -1; cOffset <= 1; cOffset++) {
+                    if (rOffset == 0 && cOffset == 0) continue;
+
+                    int nRow = current.getRow() + rOffset;
+                    int nCol = current.getCol() + cOffset;
+
+                    if (isValidCoord(nRow, nCol, game.getRows(), game.getCols())) {
+                        Cell neighbor = game.getBoard()[nRow][nCol];
+                        if (!neighbor.isRevealed() && !neighbor.isFlagged()) {
+                            neighbor.setRevealed(true);
+                            if (neighbor.getAdjacentMines() == 0) {
+                                queue.add(neighbor);
                             }
                         }
                     }
                 }
-                if (mineHitDuringChord) break;
             }
         }
-
-        if (game.getStatus() == GameStatus.IN_PROGRESS && checkWinCondition(game)) {
-            game.setStatus(GameStatus.WON);
-            game.setTimeTaken(System.currentTimeMillis() - game.getStartTime()); // Set time on win
-        }
-
-        games.put(gameId, game);
-        return game;
     }
 
-    // Helper: Counts flagged neighbors around a cell
     private int countFlaggedNeighbors(GameBoard game, int row, int col) {
         int flagged = 0;
-        int rows = game.getRows();
-        int cols = game.getCols();
         for (int rOffset = -1; rOffset <= 1; rOffset++) {
             for (int cOffset = -1; cOffset <= 1; cOffset++) {
                 if (rOffset == 0 && cOffset == 0) continue;
@@ -264,7 +277,7 @@ public class GameService {
                 int nRow = row + rOffset;
                 int nCol = col + cOffset;
 
-                if (isValidCoord(nRow, nCol, rows, cols)) {
+                if (isValidCoord(nRow, nCol, game.getRows(), game.getCols())) {
                     if (game.getBoard()[nRow][nCol].isFlagged()) {
                         flagged++;
                     }
@@ -274,7 +287,6 @@ public class GameService {
         return flagged;
     }
 
-    // Helper: Checks if the game has been won
     private boolean checkWinCondition(GameBoard game) {
         int totalNonMines = (game.getRows() * game.getCols()) - game.getMines();
         int revealedNonMines = 0;
@@ -289,7 +301,6 @@ public class GameService {
         return revealedNonMines == totalNonMines;
     }
 
-    // Helper: Reveals all mines on the board
     private void revealAllMines(GameBoard game) {
         for (int r = 0; r < game.getRows(); r++) {
             for (int c = 0; c < game.getCols(); c++) {
@@ -301,18 +312,7 @@ public class GameService {
         }
     }
 
-    // Helper for boundary checks
     private boolean isValidCoord(int r, int c, int rows, int cols) {
         return r >= 0 && r < rows && c >= 0 && c < cols;
     }
-
-    // ... (rest of helper methods: countFlaggedNeighbors, checkWinCondition, revealAllMines, isValidCoord - NO CHANGE HERE) ...
-
-    // IMPORTANT: Make sure your existing private methods (initializeBoard, placeMines, calculateAdjacentMines)
-    // are correctly using the board parameters as shown in the last complete GameService.java,
-    // and not referring to a 'game' object implicitly.
-    // I've kept the ones that operate on `Cell[][] board` as they were in previous iterations.
-
-
-
 }

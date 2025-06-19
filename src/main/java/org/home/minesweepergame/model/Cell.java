@@ -1,20 +1,42 @@
 package org.home.minesweepergame.model;
 
+// Represents a single cell on the Minesweeper game board.
 public class Cell {
-    public boolean isMine;
-    public boolean isRevealed;
-    public boolean isFlagged;
-    public int adjacentMines;
+    private int row; // Row coordinate of the cell
+    private int col; // Column coordinate of the cell
+    private boolean isMine;       // True if this cell contains a mine
+    private boolean isRevealed;   // True if this cell has been revealed by the player
+    private boolean isFlagged;    // True if the player has marked this cell with a flag
+    private int adjacentMines;    // Number of adjacent cells containing mines
 
-    // Constructor
-    public Cell(boolean isMine, boolean isRevealed, boolean isFlagged, int adjacentMines) {
-        this.isMine = isMine;
-        this.isRevealed = isRevealed;
-        this.isFlagged = isFlagged;
-        this.adjacentMines = adjacentMines;
+    // No-argument constructor for serialization (e.g., by Spring's JSON converter)
+    public Cell() {
+        // Default values for an uninitialized cell
+        this.isMine = false;
+        this.isRevealed = false;
+        this.isFlagged = false;
+        this.adjacentMines = 0;
+    }
+
+    // Constructor to initialize a cell with its coordinates and default state
+    public Cell(int row, int col) {
+        this.row = row;
+        this.col = col;
+        this.isMine = false;
+        this.isRevealed = false;
+        this.isFlagged = false;
+        this.adjacentMines = 0;
     }
 
     // --- Getters ---
+    public int getRow() {
+        return row;
+    }
+
+    public int getCol() {
+        return col;
+    }
+
     public boolean isMine() {
         return isMine;
     }
@@ -32,6 +54,14 @@ public class Cell {
     }
 
     // --- Setters ---
+    public void setRow(int row) {
+        this.row = row;
+    }
+
+    public void setCol(int col) {
+        this.col = col;
+    }
+
     public void setMine(boolean mine) {
         isMine = mine;
     }
@@ -48,14 +78,19 @@ public class Cell {
         this.adjacentMines = adjacentMines;
     }
 
-    // Optional: toString for debugging
     @Override
     public String toString() {
-        return "Cell{" +
-                "isMine=" + isMine +
-                ", isRevealed=" + isRevealed +
-                ", isFlagged=" + isFlagged +
-                ", adjacentMines=" + adjacentMines +
-                '}';
+        // This toString provides a helpful representation for debugging
+        if (isRevealed) {
+            if (isMine) {
+                return "[M]"; // Mine revealed
+            } else {
+                return "[" + adjacentMines + "]"; // Revealed safe cell with mine count
+            }
+        } else if (isFlagged) {
+            return "[F]"; // Flagged cell
+        } else {
+            return "[_]"; // Unrevealed, unflagged cell
+        }
     }
 }
