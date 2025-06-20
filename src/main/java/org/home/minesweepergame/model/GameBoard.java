@@ -1,17 +1,28 @@
 package org.home.minesweepergame.model;
 
+import jakarta.persistence.*;
+
 import java.util.UUID; // Ensure UUID is imported
 
 // Represents the entire Minesweeper game board and its state.
+@Entity // <--- ADD THIS ANNOTATION
+// Optional: If you want a different table name than 'game_board'
+@Table(name = "games") // <--- Optional: Renames the table to 'games' instead of 'game_board'
 public class GameBoard {
+    @Id // <--- Specify primary key
     private String gameId;
     private int rows;
     private int cols;
     private int mines;
+    // We'll temporarily keep the actual Cell[][] for in-memory use,
+    // but it won't be directly mapped by JPA.
+    @Transient // <--- Mark as transient so JPA ignores this field
     private Cell[][] board;
+    @Enumerated(EnumType.STRING) // Store enum as String in DB
     private GameStatus status;
     private long startTime;    // Timestamp when the game started (first reveal)
     private long timeTaken;    // Time taken to win the game (in milliseconds)
+    @Enumerated(EnumType.STRING) // Store enum as String in DB
     private Difficulty difficulty; // The difficulty level for this game (EASY, MEDIUM, HARD, CUSTOM)
 
     // No-argument constructor for serialization/deserialization (e.g., by Spring's JSON converter)
