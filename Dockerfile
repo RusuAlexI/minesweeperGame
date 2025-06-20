@@ -1,10 +1,16 @@
-FROM eclipse-temurin:17-jdk
-
+# Stage 1: Build the application
+FROM openjdk:17-jdk-slim as builder
 WORKDIR /app
-COPY . /app
+COPY . .
+# Use mvnw (Maven Wrapper) to ensure consistent builds
+RUN ./mvnw clean install -DskipTests
 
-# Build the app
-RUN ./mvnw package -DskipTests
-
-# Run the app
-CMD ["java", "-jar", "target/minesweeper-backend-0.0.1-SNAPSHOT.jar"]
+# Stage 2: Create the final Docker image
+FROM openjdk:17-jdk-slim
+WORKDIR /app
+# Copy the built JAR from the builder stage
+COPY --from=builder /app/target/*.jar app.jar
+# Expose the port your Spring Boot app runs on (default is 8080)
+EXPOSE 8080
+# Command to run the application
+ENTRYPOINT ["java", "-jar", "app.jar"]

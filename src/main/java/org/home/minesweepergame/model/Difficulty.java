@@ -1,10 +1,30 @@
 package org.home.minesweepergame.model;
 
-// This enum defines the types of game difficulties.
-// Dimensions for predefined difficulties will be handled in the GameService.
 public enum Difficulty {
-    EASY,
-    MEDIUM,
-    HARD,
-    CUSTOM // Added CUSTOM for custom game settings
+    EASY(9, 9, 10),      // rows, cols, mines
+    MEDIUM(16, 16, 40),
+    HARD(16, 30, 99),
+    CUSTOM(0, 0, 0); // <--- ADD THIS LINE: Add CUSTOM with placeholder values
+
+    private final int rows;
+    private final int cols;
+    private final int mines;
+
+    Difficulty(int rows, int cols, int mines) {
+        this.rows = rows;
+        this.cols = cols;
+        this.mines = mines;
+    }
+
+    public int getRows() {
+        return rows;
+    }
+
+    public int getCols() {
+        return cols;
+    }
+
+    public int getMines() {
+        return mines;
+    }
 }
