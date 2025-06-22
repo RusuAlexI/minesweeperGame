@@ -2,6 +2,8 @@
 FROM openjdk:17-jdk-slim as builder
 WORKDIR /app
 COPY . .
+# Explicitly make mvnw executable inside the Docker container
+RUN chmod +x mvnw
 # Use mvnw (Maven Wrapper) to ensure consistent builds
 RUN ./mvnw clean install -DskipTests
 
