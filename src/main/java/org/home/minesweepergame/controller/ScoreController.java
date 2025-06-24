@@ -13,7 +13,7 @@ import java.util.List;
 
 @RestController // Marks this class as a REST controller
 @RequestMapping("/api/game/scores") // Base path for score-related endpoints
-@CrossOrigin(origins = "http://localhost:4200") // IMPORTANT: Allow requests from your Angular app
+@CrossOrigin(origins = {"http://localhost:4200", "https://minesweeper-frontend-9th2.onrender.com"}) // <-- MODIFY THIS LINE
 public class ScoreController {
 
     private final ScoreService scoreService;
