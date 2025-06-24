@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/game")
-@CrossOrigin(origins = "http://localhost:4200") // IMPORTANT: Ensure this matches your frontend's origin!
+@CrossOrigin(origins = {"http://localhost:4200", "https://minesweeper-frontend-9th2.onrender.com"}) // <-- MODIFY THIS LINE
 public class GameController {
 
     private final GameService gameService;
